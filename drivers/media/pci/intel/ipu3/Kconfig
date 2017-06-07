@@ -1,0 +1,7 @@
+config INTEL_IPU3_MMU
+	tristate
+	default n
+	---help---
+	For IPU3, this option enables its MMU driver to translate its internal
+	virtual address to 39 bits wide physical address for 64GBytes space access.
+
