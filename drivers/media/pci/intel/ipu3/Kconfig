@@ -1,0 +1,13 @@
+config INTEL_IPU3_MMU
+	tristate
+	default n
+	---help---
+	For IPU3, this option enables its MMU driver to translate its internal
+	virtual address to 39 bits wide physical address for 64GBytes space access.
+
+config INTEL_IPU3_DMAMAP
+	tristate
+	default n
+	select IOMMU_IOVA
+	---help---
+	This is IPU3 IOMMU domain specific DMA driver.
