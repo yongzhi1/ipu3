@@ -213,7 +213,7 @@ done:
 }
 
 static int __ipu3_mmu_map(struct ipu3_mmu *mmu, unsigned long iova,
-			  phys_addr_t paddr, size_t size)
+			  phys_addr_t paddr)
 {
 	u32 l1pt_idx, l2pt_idx;
 	unsigned long flags;
@@ -236,7 +236,6 @@ static int __ipu3_mmu_map(struct ipu3_mmu *mmu, unsigned long iova,
 	}
 
 	l2pt[l2pt_idx] = IPU3_ADDR2PTE(paddr);
-	call_if_ipu3_is_powered(mmu, ipu3_mmu_tlb_invalidate);
 
 	spin_unlock_irqrestore(&mmu->lock, flags);
 
@@ -311,7 +310,7 @@ int ipu3_mmu_map(struct ipu3_mmu_info *info, unsigned long iova,
 		pr_debug("mapping: iova 0x%lx pa %pa pgsize 0x%zx\n",
 			 iova, &paddr, pgsize);
 
-		ret = __ipu3_mmu_map(mmu, iova, paddr, pgsize);
+		ret = __ipu3_mmu_map(mmu, iova, paddr);
 		if (ret)
 			break;
 
@@ -319,6 +318,8 @@ int ipu3_mmu_map(struct ipu3_mmu_info *info, unsigned long iova,
 		paddr += pgsize;
 		size -= pgsize;
 	}
+
+	call_if_ipu3_is_powered(mmu, ipu3_mmu_tlb_invalidate);
 
 	return ret;
 }
@@ -330,7 +331,7 @@ size_t ipu3_mmu_map_sg(struct ipu3_mmu_info *info, unsigned long iova,
 {
 	struct ipu3_mmu *mmu = to_ipu3_mmu(info);
 	struct scatterlist *s;
-	size_t mapped = 0;
+	size_t s_length, mapped = 0;
 	unsigned int i, min_pagesz;
 	int ret;
 
@@ -339,15 +340,23 @@ size_t ipu3_mmu_map_sg(struct ipu3_mmu_info *info, unsigned long iova,
 	for_each_sg(sg, s, nents, i) {
 		phys_addr_t phys = page_to_phys(sg_page(s)) + s->offset;
 
+		s_length = s->length;
+
 		if (!IS_ALIGNED(s->offset, min_pagesz))
 			goto out_err;
 
-		ret = ipu3_mmu_map(info, iova + mapped, phys, s->length);
+		/* must be min_pagesz aligned to be mapped singlely */
+		if (i == nents - 1 && !IS_ALIGNED(s->length, min_pagesz))
+			s_length = PAGE_ALIGN(s->length);
+
+		ret = ipu3_mmu_map(info, iova + mapped, phys, s_length);
 		if (ret)
 			goto out_err;
 
-		mapped += s->length;
+		mapped += s_length;
 	}
+
+	call_if_ipu3_is_powered(mmu, ipu3_mmu_tlb_invalidate);
 
 	return mapped;
 
@@ -364,6 +373,7 @@ static size_t __ipu3_mmu_unmap(struct ipu3_mmu *mmu,
 {
 	u32 l1pt_idx, l2pt_idx;
 	unsigned long flags;
+	size_t unmap = size;
 	u32 *l2pt;
 
 	if (!mmu)
@@ -380,14 +390,13 @@ static size_t __ipu3_mmu_unmap(struct ipu3_mmu *mmu,
 	}
 
 	if (l2pt[l2pt_idx] == mmu->dummy_page_pteval)
-		size = 0;
+		unmap = 0;
 
 	l2pt[l2pt_idx] = mmu->dummy_page_pteval;
-	call_if_ipu3_is_powered(mmu, ipu3_mmu_tlb_invalidate);
 
 	spin_unlock_irqrestore(&mmu->lock, flags);
 
-	return size;
+	return unmap;
 }
 
 /* drivers/iommu/iommu.c/iommu_unmap() */
@@ -432,6 +441,8 @@ size_t ipu3_mmu_unmap(struct ipu3_mmu_info *info, unsigned long iova,
 		iova += unmapped_page;
 		unmapped += unmapped_page;
 	}
+
+	call_if_ipu3_is_powered(mmu, ipu3_mmu_tlb_invalidate);
 
 	return unmapped;
 }
