@@ -2447,7 +2447,6 @@ int ipu3_css_cfg_acc(struct ipu3_css *css, struct ipu3_uapi_flags *use,
 	if (ret)
 		return ret;
 
-	/* acc_param: lace_stat_config */
 	/* acc_param: yuvp1_iefd_config */
 
 	if (use && use->acc_iefd) {
@@ -3018,9 +3017,9 @@ int ipu3_css_cfg_vmem0(struct ipu3_css *css, struct ipu3_uapi_flags *use,
 		&css->fwp->binary_header[css->current_binary];
 	struct imgu_fw_param_memory_offsets *pofs = (void *)css->fwp +
 		bi->blob.memory_offsets.offsets[IMGU_ABI_PARAM_CLASS_PARAM];
-	struct ipu3_uapi_isp_lin_vmem_params *lin_vmem;
-	struct ipu3_uapi_isp_tnr3_vmem_params *tnr_vmem;
-	struct ipu3_uapi_isp_xnr3_vmem_params *xnr_vmem;
+	struct ipu3_uapi_isp_lin_vmem_params *lin_vmem = NULL;
+	struct ipu3_uapi_isp_tnr3_vmem_params *tnr_vmem = NULL;
+	struct ipu3_uapi_isp_xnr3_vmem_params *xnr_vmem = NULL;
 	const enum imgu_abi_param_class c = IMGU_ABI_PARAM_CLASS_PARAM;
 	const enum imgu_abi_memories m = IMGU_ABI_MEM_ISP_VMEM0;
 	unsigned int i;
@@ -3145,8 +3144,8 @@ void ipu3_css_cfg_gdc_table(struct ipu3_uapi_gdc_warp_param *gdc,
 	const unsigned int XMEM_ALIGN_MASK = ~(XMEM_ALIGN - 1);
 	static const unsigned int BCI_ENV = 4;
 	static const unsigned int BYP = 2;	/* Bytes per pixel */
-	unsigned int OFFSET_X = 2 * IMGU_DVS_BLOCK_W + env_w + 1;
-	unsigned int OFFSET_Y = IMGU_DVS_BLOCK_H + env_h + 1;
+	const unsigned int OFFSET_X = 2 * IMGU_DVS_BLOCK_W + env_w + 1;
+	const unsigned int OFFSET_Y = IMGU_DVS_BLOCK_H + env_h + 1;
 
 	struct ipu3_uapi_gdc_warp_param gdc_luma, gdc_chroma;
 

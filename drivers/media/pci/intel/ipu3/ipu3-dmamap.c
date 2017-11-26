@@ -55,7 +55,7 @@ static struct page **ipu3_dmamap_alloc_buffer(size_t size,
 	if (!order_mask)
 		return NULL;
 
-	gfp |= __GFP_NOWARN | __GFP_HIGHMEM | __GFP_ZERO;
+	gfp |= __GFP_HIGHMEM | __GFP_ZERO;
 
 	while (count) {
 		struct page *page = NULL;
@@ -221,7 +221,6 @@ int ipu3_dmamap_map_sg(struct device *dev, struct scatterlist *sglist,
 	struct scatterlist *sg;
 	struct iova *iova;
 	size_t size = 0;
-	size_t size_aligned;
 	int i;
 
 	for_each_sg(sglist, sg, nents, i) {
@@ -233,12 +232,12 @@ int ipu3_dmamap_map_sg(struct device *dev, struct scatterlist *sglist,
 
 		size += sg->length;
 	}
-	size_aligned = PAGE_ALIGN(size);
 
+	size = iova_align(&imgu->iova_domain, size);
 	dev_dbg(dev, "dmamap: mapping sg %d entries, %zu pages\n",
-		nents, size_aligned >> shift);
+		nents, size >> shift);
 
-	iova = alloc_iova(&imgu->iova_domain, size_aligned >> shift,
+	iova = alloc_iova(&imgu->iova_domain, size >> shift,
 			  imgu->mmu->aperture_end >> shift, 0);
 	if (!iova)
 		return -ENOMEM;
@@ -252,7 +251,7 @@ int ipu3_dmamap_map_sg(struct device *dev, struct scatterlist *sglist,
 
 	memset(map, 0, sizeof(*map));
 	map->daddr = iova_dma_addr(&imgu->iova_domain, iova);
-	map->size = size_aligned;
+	map->size = size;
 
 	return 0;
 

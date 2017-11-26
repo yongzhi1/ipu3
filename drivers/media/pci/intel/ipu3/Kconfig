@@ -7,8 +7,9 @@ config INTEL_IPU3_MMU
 
 config INTEL_IPU3_DMAMAP
 	tristate
-	default m
+	default n
 	select IOMMU_IOVA
+	select INTEL_IPU3_MMU
 	---help---
 	This is IPU3 IOMMU domain specific DMA driver.
 
@@ -16,7 +17,6 @@ config VIDEO_IPU3_IMGU
 	tristate "Intel ipu3-imgu driver"
 	depends on PCI && VIDEO_V4L2 && IOMMU_SUPPORT
 	depends on MEDIA_CONTROLLER && VIDEO_V4L2_SUBDEV_API
-	select INTEL_IPU3_MMU
 	select INTEL_IPU3_DMAMAP
 	select VIDEOBUF2_DMA_SG
 	---help---
@@ -25,4 +25,4 @@ config VIDEO_IPU3_IMGU
 	images and video.
 
 	Say Y or M here if you have a Skylake/Kaby Lake SoC with a MIPI
-	camera.	The module will be called ipu3-imgu.
+	camera. The module will be called ipu3-imgu.

@@ -42,8 +42,7 @@
 #define IMGU_NODE_PV			4 /* Postview for still capture */
 #define IMGU_NODE_STAT_3A		5 /* 3A statistics */
 #define IMGU_NODE_STAT_DVS		6 /* DVS statistics */
-#define IMGU_NODE_STAT_LACE		7 /* Lace statistics */
-#define IMGU_NODE_NUM			8
+#define IMGU_NODE_NUM			7
 
 #define file_to_intel_ipu3_node(__file) \
 	container_of(video_devdata(__file), struct imgu_video_device, vdev)
@@ -116,9 +115,6 @@ struct imgu_device {
 	bool queue_enabled[IMGU_NODE_NUM];
 
 	/* Public fields, fill before registering */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
-	void *alloc_ctx;
-#endif
 	unsigned int buf_struct_size;
 	bool streaming;		/* Public read only */
 	struct v4l2_ctrl_handler *ctrl_handler;

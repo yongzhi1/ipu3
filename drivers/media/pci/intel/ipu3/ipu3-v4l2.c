@@ -16,6 +16,7 @@
 #include <linux/pm_runtime.h>
 
 #include <media/v4l2-ioctl.h>
+
 #include "ipu3.h"
 #include "ipu3-dmamap.h"
 
@@ -67,21 +68,83 @@ static int ipu3_subdev_set_fmt(struct v4l2_subdev *sd,
 	/* Clamp the w and h based on the hardware capabilities */
 	if (imgu->subdev_pads[pad].flags & MEDIA_PAD_FL_SOURCE) {
 		fmt->format.width = clamp(fmt->format.width,
-					IPU3_OUTPUT_MIN_WIDTH,
-					IPU3_OUTPUT_MAX_WIDTH);
+					  IPU3_OUTPUT_MIN_WIDTH,
+					  IPU3_OUTPUT_MAX_WIDTH);
 		fmt->format.height = clamp(fmt->format.height,
-					IPU3_OUTPUT_MIN_HEIGHT,
-					IPU3_OUTPUT_MAX_HEIGHT);
+					   IPU3_OUTPUT_MIN_HEIGHT,
+					   IPU3_OUTPUT_MAX_HEIGHT);
 	} else {
 		fmt->format.width = clamp(fmt->format.width,
-					IPU3_INPUT_MIN_WIDTH,
-					IPU3_INPUT_MAX_WIDTH);
+					  IPU3_INPUT_MIN_WIDTH,
+					  IPU3_INPUT_MAX_WIDTH);
 		fmt->format.height = clamp(fmt->format.height,
-					IPU3_INPUT_MIN_HEIGHT,
-					IPU3_INPUT_MAX_HEIGHT);
+					   IPU3_INPUT_MIN_HEIGHT,
+					   IPU3_INPUT_MAX_HEIGHT);
 	}
 
 	*mf = fmt->format;
+
+	return 0;
+}
+
+static int ipu3_subdev_get_selection(struct v4l2_subdev *sd,
+				     struct v4l2_subdev_pad_config *cfg,
+				     struct v4l2_subdev_selection *sel)
+{
+	struct imgu_device *imgu = container_of(sd, struct imgu_device, subdev);
+	struct v4l2_rect *try_sel, *r;
+
+	if (sel->pad != IMGU_NODE_IN)
+		return -EINVAL;
+
+	switch (sel->target) {
+	case V4L2_SEL_TGT_CROP:
+		try_sel = v4l2_subdev_get_try_crop(sd, cfg, sel->pad);
+		r = &imgu->rect.eff;
+		break;
+	case V4L2_SEL_TGT_COMPOSE:
+		try_sel = v4l2_subdev_get_try_compose(sd, cfg, sel->pad);
+		r = &imgu->rect.bds;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	if (sel->which == V4L2_SUBDEV_FORMAT_TRY)
+		sel->r = *try_sel;
+	else
+		sel->r = *r;
+
+	return 0;
+}
+
+static int ipu3_subdev_set_selection(struct v4l2_subdev *sd,
+				     struct v4l2_subdev_pad_config *cfg,
+				     struct v4l2_subdev_selection *sel)
+{
+	struct imgu_device *imgu = container_of(sd, struct imgu_device, subdev);
+	struct v4l2_rect *rect, *try_sel;
+
+	if (sel->pad != IMGU_NODE_IN)
+		return -EINVAL;
+
+	switch (sel->target) {
+	case V4L2_SEL_TGT_CROP:
+		try_sel = v4l2_subdev_get_try_crop(sd, cfg, sel->pad);
+		rect = &imgu->rect.eff;
+		break;
+	case V4L2_SEL_TGT_COMPOSE:
+		try_sel = v4l2_subdev_get_try_compose(sd, cfg, sel->pad);
+		rect = &imgu->rect.bds;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	if (sel->which == V4L2_SUBDEV_FORMAT_TRY)
+		*try_sel = sel->r;
+	else
+		*rect = sel->r;
 
 	return 0;
 }
@@ -219,7 +282,7 @@ static int ipu3_vb2_queue_setup(struct vb2_queue *vq,
 static bool ipu3_all_nodes_streaming(struct imgu_device *imgu,
 				     struct imgu_video_device *except)
 {
-	int i;
+	unsigned int i;
 
 	for (i = 0; i < IMGU_NODE_NUM; i++) {
 		struct imgu_video_device *node = &imgu->nodes[i];
@@ -351,7 +414,7 @@ static int ipu3_vidioc_querycap(struct file *file, void *fh,
 {
 	struct imgu_video_device *node = file_to_intel_ipu3_node(file);
 
-	strlcpy(cap->driver, IMGU_NAME ":0", sizeof(cap->driver));
+	strlcpy(cap->driver, IMGU_NAME, sizeof(cap->driver));
 	strlcpy(cap->card, IMGU_NAME, sizeof(cap->card));
 	snprintf(cap->bus_info, sizeof(cap->bus_info), "PCI:%s", node->name);
 
@@ -443,7 +506,7 @@ static int imgu_fmt(struct imgu_device *imgu, int node,
 
 		/* Skip the meta node */
 		if (inode == IMGU_NODE_STAT_3A || inode == IMGU_NODE_STAT_DVS ||
-		    inode == IMGU_NODE_STAT_LACE || inode == IMGU_NODE_PARAMS)
+		    inode == IMGU_NODE_PARAMS)
 			continue;
 
 		if (try) {
@@ -496,56 +559,6 @@ static int imgu_fmt(struct imgu_device *imgu, int node,
 	return 0;
 }
 
-static int imgu_s_selection(struct imgu_device *imgu, int node,
-			    struct v4l2_selection *s)
-{
-	struct v4l2_rect *rect = NULL;
-
-	if (node != IPU3_CSS_QUEUE_IN)
-		return -ENOIOCTLCMD;
-
-	switch (s->target) {
-	case V4L2_SEL_TGT_CROP:
-		rect = &imgu->rect.eff;
-		break;
-	case V4L2_SEL_TGT_COMPOSE:
-		rect = &imgu->rect.bds;
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	*rect = s->r;
-
-	return 0;
-}
-
-static int imgu_g_selection(struct imgu_device *imgu, int node,
-			    struct v4l2_selection *s)
-{
-	if (node != IPU3_CSS_QUEUE_IN)
-		return -ENOIOCTLCMD;
-
-	switch (s->target) {
-	case V4L2_SEL_TGT_CROP:
-		s->r = imgu->rect.eff;
-		break;
-	case V4L2_SEL_TGT_COMPOSE:
-		s->r = imgu->rect.bds;
-		break;
-	case V4L2_SEL_TGT_CROP_BOUNDS:
-	case V4L2_SEL_TGT_CROP_DEFAULT:
-	case V4L2_SEL_TGT_COMPOSE_PADDED:
-	case V4L2_SEL_TGT_COMPOSE_DEFAULT:
-	case V4L2_SEL_TGT_COMPOSE_BOUNDS:
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	return 0;
-}
-
 static int ipu3_try_fmt(struct file *file, void *fh, struct v4l2_format *f)
 {
 	struct v4l2_pix_format_mplane *pixm = &f->fmt.pix_mp;
@@ -559,7 +572,6 @@ static int ipu3_try_fmt(struct file *file, void *fh, struct v4l2_format *f)
 		return -EINVAL;
 
 	pixm->pixelformat = fmt->fourcc;
-
 	memset(pixm->plane_fmt[0].reserved, 0,
 	       sizeof(pixm->plane_fmt[0].reserved));
 
@@ -591,30 +603,6 @@ static int ipu3_vidioc_s_fmt(struct file *file, void *fh, struct v4l2_format *f)
 		return r;
 
 	return imgu_fmt(imgu, node - imgu->nodes, f, false);
-}
-
-static int ipu3_vidioc_s_selection(struct file *file, void *fh,
-				   struct v4l2_selection *s)
-{
-	struct imgu_device *imgu = video_drvdata(file);
-	struct imgu_video_device *node = file_to_intel_ipu3_node(file);
-
-	if (s->type != node->vdev_fmt.type)
-		return -EINVAL;
-
-	return imgu_s_selection(imgu, node - imgu->nodes, s);
-}
-
-static int ipu3_vidioc_g_selection(struct file *file, void *fh,
-				   struct v4l2_selection *s)
-{
-	struct imgu_device *imgu = video_drvdata(file);
-	struct imgu_video_device *node = file_to_intel_ipu3_node(file);
-
-	if (s->type != node->vdev_fmt.type)
-		return -EINVAL;
-
-	return imgu_g_selection(imgu, node - imgu->nodes, s);
 }
 
 static int ipu3_meta_enum_format(struct file *file, void *fh,
@@ -702,6 +690,8 @@ static const struct v4l2_subdev_pad_ops ipu3_subdev_pad_ops = {
 	.link_validate = v4l2_subdev_link_validate_default,
 	.get_fmt = ipu3_subdev_get_fmt,
 	.set_fmt = ipu3_subdev_set_fmt,
+	.get_selection = ipu3_subdev_get_selection,
+	.set_selection = ipu3_subdev_set_selection,
 };
 
 static const struct v4l2_subdev_ops ipu3_subdev_ops = {
@@ -746,9 +736,6 @@ static const struct v4l2_ioctl_ops ipu3_v4l2_ioctl_ops = {
 	.vidioc_g_fmt_vid_cap_mplane = ipu3_vidioc_g_fmt,
 	.vidioc_s_fmt_vid_cap_mplane = ipu3_vidioc_s_fmt,
 	.vidioc_try_fmt_vid_cap_mplane = ipu3_vidioc_try_fmt,
-
-	.vidioc_s_selection = ipu3_vidioc_s_selection,
-	.vidioc_g_selection = ipu3_vidioc_g_selection,
 
 	.vidioc_enum_fmt_vid_out_mplane = vidioc_enum_fmt_vid_out,
 	.vidioc_g_fmt_vid_out_mplane = ipu3_vidioc_g_fmt,
@@ -839,13 +826,6 @@ static void ipu3_node_to_v4l2(u32 node, struct video_device *vdev,
 		vdev->ioctl_ops = &ipu3_v4l2_meta_ioctl_ops;
 		ipu3_css_meta_fmt_set(&f->fmt.meta);
 		break;
-	case IMGU_NODE_STAT_LACE:
-		cap = V4L2_CAP_META_CAPTURE;
-		f->type = V4L2_BUF_TYPE_META_CAPTURE;
-		f->fmt.meta.dataformat = V4L2_META_FMT_IPU3_STAT_LACE;
-		vdev->ioctl_ops = &ipu3_v4l2_meta_ioctl_ops;
-		ipu3_css_meta_fmt_set(&f->fmt.meta);
-		break;
 	default:
 		cap = V4L2_CAP_VIDEO_CAPTURE_MPLANE;
 		f->type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
@@ -873,7 +853,6 @@ int ipu3_v4l2_register(struct imgu_device *imgu)
 		 "%s", dev_name(&imgu->pci_dev->dev));
 	imgu->media_dev.hw_revision = 0;
 	media_device_init(&imgu->media_dev);
-
 	r = media_device_register(&imgu->media_dev);
 	if (r) {
 		dev_err(&imgu->pci_dev->dev,
@@ -906,6 +885,7 @@ int ipu3_v4l2_register(struct imgu_device *imgu)
 			"failed initialize subdev media entity (%d)\n", r);
 		goto fail_media_entity;
 	}
+
 	imgu->subdev.entity.ops = &ipu3_media_ops;
 	for (i = 0; i < IMGU_NODE_NUM; i++) {
 		imgu->subdev_pads[i].flags = imgu->nodes[i].output ?
@@ -915,8 +895,7 @@ int ipu3_v4l2_register(struct imgu_device *imgu)
 	/* Initialize subdev */
 	v4l2_subdev_init(&imgu->subdev, &ipu3_subdev_ops);
 	imgu->subdev.flags = V4L2_SUBDEV_FL_HAS_DEVNODE;
-	snprintf(imgu->subdev.name, sizeof(imgu->subdev.name),
-		 "%s", IMGU_NAME ":0");
+	strlcpy(imgu->subdev.name, IMGU_NAME, sizeof(imgu->subdev.name));
 	v4l2_set_subdevdata(&imgu->subdev, imgu);
 	imgu->subdev.ctrl_handler = imgu->ctrl_handler;
 	r = v4l2_device_register_subdev(&imgu->v4l2_dev, &imgu->subdev);
@@ -993,8 +972,7 @@ int ipu3_v4l2_register(struct imgu_device *imgu)
 		vbq->ops = &ipu3_vb2_ops;
 		vbq->mem_ops = &vb2_dma_sg_memops;
 		if (imgu->buf_struct_size <= 0)
-			imgu->buf_struct_size =
-				sizeof(struct ipu3_vb2_buffer);
+			imgu->buf_struct_size = sizeof(struct ipu3_vb2_buffer);
 		vbq->buf_struct_size = imgu->buf_struct_size;
 		vbq->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;
 		vbq->min_buffers_needed = 0;	/* Can streamon w/o buffers */
@@ -1030,15 +1008,12 @@ int ipu3_v4l2_register(struct imgu_device *imgu)
 		if (node->immutable)
 			flags |= MEDIA_LNK_FL_IMMUTABLE;
 		if (node->output) {
-			r = media_create_pad_link(
-						 &vdev->entity, 0,
-						 &imgu->subdev.entity,
-						 i, flags);
+			r = media_create_pad_link(&vdev->entity, 0,
+						  &imgu->subdev.entity,
+						  i, flags);
 		} else {
-			r = media_create_pad_link(
-						 &imgu->subdev.entity,
-						 i, &vdev->entity, 0,
-						 flags);
+			r = media_create_pad_link(&imgu->subdev.entity,
+						  i, &vdev->entity, 0, flags);
 		}
 		if (r)
 			goto fail_link;

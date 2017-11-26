@@ -476,7 +476,7 @@ static int ipu3_css_hw_init(struct ipu3_css *css)
 		       base + IMGU_REG_GDC_LUT_BASE + i * 8);
 		writel(val2 | (val3 << 16),
 		       base + IMGU_REG_GDC_LUT_BASE + i * 8 + 4);
-	};
+	}
 
 	return 0;
 }
@@ -526,7 +526,6 @@ static int ipu3_css_hw_start(struct ipu3_css *css)
 		(1 << IMGU_ABI_EVTTYPE_FRAME_TAGGED) |
 		(1 << IMGU_ABI_EVTTYPE_INPUT_FRAME_DONE) |
 		(1 << IMGU_ABI_EVTTYPE_METADATA_DONE) |
-		(1 << IMGU_ABI_EVTTYPE_LACE_STATS_DONE) |
 		(1 << IMGU_ABI_EVTTYPE_ACC_STAGE_COMPLETE))
 		<< IMGU_ABI_SP_COMM_EVENT_IRQ_MASK_OR_SHIFT;
 
@@ -909,7 +908,6 @@ static int ipu3_css_pipeline_init(struct ipu3_css *css)
 	sp_stage->frames.out_vf.buf_attr = buffer_sp_init;
 	sp_stage->frames.s3a_buf = buffer_sp_init;
 	sp_stage->frames.dvs_buf = buffer_sp_init;
-	sp_stage->frames.lace_buf = buffer_sp_init;
 
 	sp_stage->stage_type = IMGU_ABI_STAGE_TYPE_ISP;
 	sp_stage->num = stage;
@@ -1647,7 +1645,6 @@ int ipu3_css_fmt_try(struct ipu3_css *css,
 		[IPU3_CSS_QUEUE_VF] = "vf",
 		[IPU3_CSS_QUEUE_STAT_3A]   = "3a",
 		[IPU3_CSS_QUEUE_STAT_DVS]  = "dvs",
-		[IPU3_CSS_QUEUE_STAT_LACE] = "lace",
 	};
 	static const char *rnames[IPU3_CSS_RECTS] = {
 		[IPU3_CSS_RECT_EFFECTIVE] = "effective resolution",
@@ -1826,9 +1823,6 @@ int ipu3_css_meta_fmt_set(struct v4l2_meta_format *fmt)
 	case V4L2_META_FMT_IPU3_STAT_DVS:
 		fmt->buffersize = sizeof(struct ipu3_uapi_stats_dvs);
 		break;
-	case V4L2_META_FMT_IPU3_STAT_LACE:
-		fmt->buffersize = sizeof(struct ipu3_uapi_stats_lace);
-		break;
 	default:
 		return -EINVAL;
 	}
@@ -1921,7 +1915,6 @@ struct ipu3_css_buffer *ipu3_css_buf_dequeue(struct ipu3_css *css)
 		[IMGU_ABI_EVTTYPE_VF_OUT_FRAME_DONE] = IPU3_CSS_QUEUE_VF,
 		[IMGU_ABI_EVTTYPE_3A_STATS_DONE] = IPU3_CSS_QUEUE_STAT_3A,
 		[IMGU_ABI_EVTTYPE_DIS_STATS_DONE] = IPU3_CSS_QUEUE_STAT_DVS,
-		[IMGU_ABI_EVTTYPE_LACE_STATS_DONE] = IPU3_CSS_QUEUE_STAT_LACE,
 	};
 	struct ipu3_css_buffer *b = ERR_PTR(-EAGAIN);
 	u32 event, daddr;
@@ -1943,7 +1936,6 @@ struct ipu3_css_buffer *ipu3_css_buf_dequeue(struct ipu3_css *css)
 	case IMGU_ABI_EVTTYPE_3A_STATS_DONE:
 	case IMGU_ABI_EVTTYPE_DIS_STATS_DONE:
 	case IMGU_ABI_EVTTYPE_INPUT_FRAME_DONE:
-	case IMGU_ABI_EVTTYPE_LACE_STATS_DONE:
 		pipe = (event & IMGU_ABI_EVTTYPE_PIPE_MASK) >>
 			IMGU_ABI_EVTTYPE_PIPE_SHIFT;
 		pipeid = (event & IMGU_ABI_EVTTYPE_PIPEID_MASK) >>
@@ -1991,6 +1983,7 @@ struct ipu3_css_buffer *ipu3_css_buf_dequeue(struct ipu3_css *css)
 	case IMGU_ABI_EVTTYPE_PIPELINE_DONE:
 		dev_dbg(css->dev, "event: pipeline done 0x%x for frame %ld\n",
 			event, css->frame);
+
 		if (css->frame == LONG_MAX)
 			css->frame = 0;
 		else
