@@ -37,8 +37,7 @@
 #define IPU3_CSS_QUEUE_VF		3
 #define IPU3_CSS_QUEUE_STAT_3A		4
 #define IPU3_CSS_QUEUE_STAT_DVS		5
-#define IPU3_CSS_QUEUE_STAT_LACE	6
-#define IPU3_CSS_QUEUES			7
+#define IPU3_CSS_QUEUES			6
 
 #define IPU3_CSS_RECT_EFFECTIVE		0       /* Effective resolution */
 #define IPU3_CSS_RECT_BDS		1       /* Resolution after BDS */
@@ -201,11 +200,11 @@ int ipu3_css_irq_ack(struct ipu3_css *css);
 
 /******************* set parameters ************/
 int ipu3_css_set_parameters(struct ipu3_css *css,
-		struct ipu3_uapi_params *set_params,
-		struct ipu3_uapi_gdc_warp_param *set_gdc,
-		unsigned int gdc_bytes,
-		struct ipu3_uapi_obgrid_param *set_obgrid,
-		unsigned int obgrid_bytes);
+			    struct ipu3_uapi_params *set_params,
+			    struct ipu3_uapi_gdc_warp_param *set_gdc,
+			    unsigned int gdc_bytes,
+			    struct ipu3_uapi_obgrid_param *set_obgrid,
+			    unsigned int obgrid_bytes);
 
 /******************* css misc *******************/
 static inline enum ipu3_css_buffer_state
@@ -216,7 +215,7 @@ ipu3_css_buf_state(struct ipu3_css_buffer *b)
 
 /* Initialize given buffer. May be called several times. */
 static inline void ipu3_css_buf_init(struct ipu3_css_buffer *b,
-				unsigned int queue, dma_addr_t daddr)
+				     unsigned int queue, dma_addr_t daddr)
 {
 	b->state = IPU3_CSS_BUFFER_NEW;
 	b->queue = queue;
