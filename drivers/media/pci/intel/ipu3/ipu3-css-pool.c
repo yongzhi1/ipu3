@@ -19,7 +19,7 @@
 int ipu3_css_dma_buffer_resize(struct device *dev, struct ipu3_css_map *map,
 			       size_t size)
 {
-	if ((map->size < size) && map->vaddr) {
+	if (map->size < size && map->vaddr) {
 		dev_warn(dev, "dma buffer is resized from %zu to %zu",
 			 map->size, size);
 
